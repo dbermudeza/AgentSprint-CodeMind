@@ -1,51 +1,40 @@
 # AgentSprint-CodeMind
-Agente Pfanneberg
+Copiloto técnico-comercial para Pfannenberg.
 
-## Estructura del proyecto
+## Qué corre hoy
 
+La demo actual es una app de Streamlit de una sola pantalla. La UI vive en [app.py](app.py) y usa un backend mock en [demo/mock_backend.py](demo/mock_backend.py) hasta que el equipo entregue `src/api.py`.
+
+## Instalación
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-├── main.py                  # Punto de entrada: bucle de conversación por consola
-├── requirements.txt         # Dependencias del proyecto
-├── .env                     # Variables de entorno reales (NO se sube al repo)
-├── .env.example             # Plantilla de variables de entorno
-├── .gitignore
-└── src/
-    ├── config.py             # Configuración centralizada (lee variables de entorno)
-    ├── state.py               # Definición del estado del grafo (AgentState)
-    ├── graph.py                # Ensamblado del grafo de LangGraph (nodos y bordes)
-    ├── agents/
-    │   ├── __init__.py
-    └── tools/
-        ├── __init__.py         # Registro 
+## Ejecución
+
+```bash
+streamlit run app.py
 ```
 
-### Por qué esta separación
+Si quieres abrir la demo localmente en una sesión headless, usa el puerto 8501 que levanta Streamlit por defecto.
 
-- **`config.py`**: un único punto de verdad para credenciales/configuración; evita
-  leer `os.getenv` esparcido por el código.
-- **`state.py`**: el estado (`AgentState`) es el "contrato" de datos que viaja
-  entre nodos del grafo. Aislarlo facilita añadir campos (memoria, contexto de
-  otros agentes, etc.) sin tocar la lógica.
-- **`tools/`**: cada herramienta vive en su propio archivo y se expone en
-  `all_tools`. Añadir una herramienta nueva no requiere tocar el agente.
-- **`agents/`**: la lógica del nodo (qué LLM, qué prompt, qué herramientas)
-  está aislada. En un sistema multi-agente, cada agente tendría su propio
-  archivo aquí.
-- **`graph.py`**: define cómo se conectan los nodos (agente ⇄ herramientas).
-  Es el único lugar que conoce la topología del flujo.
+## Guion de demo de 3 minutos
 
-## Librerías utilizadas
+1. Abre la app y señala que la pantalla está dividida en chat a la izquierda y resultados a la derecha.
+2. Haz clic en **Cargar caso de ejemplo** para precargar el gabinete de 2000 × 800 × 600 mm, 1200 W, ambiente 35 °C y objetivo 40 °C.
+3. En el panel derecho muestra **Caso actual**, luego **Recomendación** y destaca el artículo 12982411055 como referencia comprable.
+4. Señala **Supuestos** para dejar claro que la estimación es propia y que el cálculo certificado va al Pfannenberg Sizing Software.
+5. Abre **Ver trazas** y termina mostrando las fuentes citadas en formato simple: Thermal_Management_EN_V4.pdf, p.45.
 
-| Librería | Uso en el proyecto |
-|---|---|
-| [`langchain`](https://python.langchain.com/) | Framework base: mensajes, herramientas (`@tool`), abstracciones comunes |
-| [`langchain-openai`](https://python.langchain.com/docs/integrations/platforms/openai/) | Integración con la API de OpenAI (`ChatOpenAI`) |
-| [`langchain-community`](https://python.langchain.com/docs/integrations/platforms/) | Herramientas de la comunidad, aquí usada para `DuckDuckGoSearchRun` |
-| [`langgraph`](https://langchain-ai.github.io/langgraph/) | Orquestación del agente como grafo de estados (nodos, bordes condicionales, bucles) |
-| [`ddgs`](https://pypi.org/project/ddgs/) | Cliente de búsqueda en DuckDuckGo, dependencia de la herramienta `buscar_web` |
-| [`pydantic`](https://docs.pydantic.dev/) | Validación y tipado de la configuración (`Settings`) |
-| [`python-dotenv`](https://pypi.org/project/python-dotenv/) | Carga de variables de entorno desde `.env` |
+## Nota de integración
 
-Todas se instalan a partir de `requirements.txt`; el resto de paquetes que
-aparecen si haces `pip freeze` son dependencias transitivas resueltas por pip.
+Cuando `src/api.py` esté listo, cambia solo la línea de import en [app.py](app.py):
+
+```python
+from demo.mock_backend import responder  # TODO: -> from src.api import responder
+```
+
+El contrato del dict viene de [src/contracts.py](src/contracts.py) y la UI ya está alineada con esa forma.
