@@ -110,11 +110,28 @@ def _correr_agente(mensaje: str, sesion: dict[str, Any]) -> tuple[str, list[str]
     if isinstance(texto, list):  # algunos modelos devuelven bloques
         texto = " ".join(str(b.get("text", b)) for b in texto)
 
-    sesion["mensajes"] = [
-        {"role": getattr(m, "type", "assistant"), "content": str(m.content)}
-        for m in mensajes
-        if getattr(m, "content", None)
-    ][-12:]  # ventana corta: memoria de sesion, no historia larga
+    # Se guarda solo la conversacion: turnos del usuario y respuestas finales
+    # del agente. Las llamadas a herramienta y sus resultados se descartan.
+    #
+    # No es por ahorrar espacio: un mensaje `tool` necesita su `tool_call_id`
+    # y el mensaje `ai` que lo invoco, y al serializar a dict se perdian. El
+    # turno siguiente reenviaba un historial invalido y el proveedor fallaba
+    # con KeyError: 'tool_call_id'. El razonamiento intermedio no aporta
+    # contexto al turno siguiente; la conversacion si.
+    conversacion: list[dict[str, str]] = []
+    for m in mensajes:
+        tipo = getattr(m, "type", None)
+        if tipo not in ("human", "ai"):
+            continue
+        if getattr(m, "tool_calls", None):  # paso intermedio, no respuesta
+            continue
+        contenido = str(m.content or "").strip()
+        if contenido:
+            conversacion.append(
+                {"role": "user" if tipo == "human" else "assistant", "content": contenido}
+            )
+
+    sesion["mensajes"] = conversacion[-10:]  # ventana corta de memoria de sesion
 
     return texto, trazas
 

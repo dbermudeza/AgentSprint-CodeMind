@@ -221,7 +221,15 @@ with left:
 
     prompt = st.chat_input("Escribe el caso o una pregunta de seguimiento")
     if prompt:
-        answer = responder(prompt, st.session_state.sesion)
+        # El spinner importa: el agente encadena varias llamadas y puede tardar
+        # bastantes segundos. Sin señal visible parece que la app se colgó.
+        with st.spinner("Consultando la documentación…"):
+            try:
+                answer = responder(prompt, st.session_state.sesion)
+            except Exception as exc:
+                # Un fallo silencioso aquí es indistinguible de "no responde".
+                st.error(f"No se pudo procesar la consulta: {type(exc).__name__}: {exc}")
+                st.stop()
         _record_turn(prompt, answer)
         st.rerun()
 
