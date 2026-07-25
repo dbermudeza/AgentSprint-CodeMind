@@ -26,8 +26,12 @@ def buscar_documentacion(consulta: str, solo_tablas: bool = False) -> str:
     preguntas sobre productos, aplicaciones o características.
 
     Args:
-        consulta: qué buscar. Incluye códigos de modelo si los conoces
-            (ej. "capacidad de refrigeración DTS 3161").
+        consulta: qué buscar, EN INGLÉS. Los documentos están en inglés y el
+            buscador compara la consulta contra su texto, así que una consulta
+            en español devuelve resultados irrelevantes. Traduce siempre los
+            términos: "lavado a presión" -> "washdown", "gabinete" ->
+            "enclosure", "refrigeración" -> "cooling". Incluye los códigos de
+            modelo tal cual si los conoces (ej. "DTS 3161 cooling capacity").
         solo_tablas: True para restringir a tablas de especificaciones, donde
             viven las capacidades y dimensiones. Úsalo cuando busques un dato
             numérico concreto.

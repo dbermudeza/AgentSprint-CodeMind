@@ -102,9 +102,10 @@ def buscar_vectorial(
 
     filtro = {"tipo": "table"} if solo_tablas else None
     try:
-        resultados = store.similarity_search_with_relevance_scores(
-            consulta, k=k, filter=filtro
-        )
+        # `similarity_search` a secas y no la variante con relevance scores:
+        # la fusion RRF usa el ORDEN, no la puntuacion, y la normalizacion de
+        # Chroma emite avisos y devuelve valores negativos que aqui no aportan.
+        documentos = store.similarity_search(consulta, k=k, filter=filtro)
     except Exception:
         return []
 
@@ -114,7 +115,9 @@ def buscar_vectorial(
             fuente=doc.metadata.get("fuente", "desconocida"),
             pagina=int(doc.metadata.get("pagina", 0)),
             tipo=doc.metadata.get("tipo", "text"),
-            score=float(score),
+            # El puesto en la lista es lo que consume RRF; se guarda invertido
+            # solo para que ordenar por score aqui siga teniendo sentido.
+            score=float(len(documentos) - i),
         )
-        for doc, score in resultados
+        for i, doc in enumerate(documentos)
     ]
