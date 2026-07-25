@@ -16,7 +16,12 @@ from src.agents.explicador import (
     redactar_mensaje,
 )
 from src.agents.extractor import extraer_parametros
-from src.state import CAMPOS_CRITICOS, AgentState, faltantes
+from src.state import (
+    CAMPOS_CRITICOS,
+    AgentState,
+    aplicar_valores_tipicos,
+    faltantes,
+)
 from src.tools.catalogo import cargar_catalogo, filtrar_candidatos
 from src.tools.dimensionar import dimensionar
 
@@ -63,17 +68,21 @@ def nodo_intake(state: AgentState) -> AgentState:
 
 
 def nodo_calcular(state: AgentState) -> AgentState:
-    caso = state["caso"]
+    # Lo que el usuario no haya dado se rellena con valores tipicos, que se
+    # declaran como supuesto: responder con lo que hay vale mas que interrogar,
+    # siempre que quede claro sobre que se respondio.
+    caso, supuestos_tipicos = aplicar_valores_tipicos(state["caso"])
     dim = dimensionar(
         disipacion_w=caso["disipacion_w"],
         t_ambiente_c=caso["t_ambiente_c"],
         t_interior_objetivo_c=caso["t_interior_objetivo_c"],
         alto_mm=caso["alto_mm"],
-        ancho_mm=caso.get("ancho_mm", caso["alto_mm"]),
-        fondo_mm=caso.get("fondo_mm", caso["alto_mm"]),
+        ancho_mm=caso["ancho_mm"],
+        fondo_mm=caso["fondo_mm"],
     )
+    state["caso"] = caso
     state["dimensionamiento"] = dim
-    state["supuestos"] = dim.supuestos
+    state["supuestos"] = supuestos_tipicos + dim.supuestos
     state["trazas"] = state.get("trazas", []) + dim.trazas
     return state
 

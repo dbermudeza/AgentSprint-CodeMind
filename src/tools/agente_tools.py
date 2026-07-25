@@ -14,6 +14,7 @@ import re
 from langchain_core.tools import tool
 
 from src.rag.hibrido import buscar
+from src.state import aplicar_valores_tipicos
 from src.tools.catalogo import capacidad_legible, cargar_catalogo, filtrar_candidatos
 from src.tools.dimensionar import dimensionar
 
@@ -60,21 +61,13 @@ def _aviso_de_atribucion(consulta: str, texto_fragmento: str) -> str:
 
 @tool
 def buscar_documentacion(consulta: str, solo_tablas: bool = False) -> str:
-    """Busca en la documentación oficial pública de Pfannenberg (60 PDFs).
-
-    Úsala para respaldar cualquier afirmación técnica, o para responder
-    preguntas sobre productos, aplicaciones o características.
+    """Busca en la documentación oficial de Pfannenberg (60 PDFs).
 
     Args:
-        consulta: qué buscar, EN INGLÉS. Los documentos están en inglés y el
-            buscador compara la consulta contra su texto, así que una consulta
-            en español devuelve resultados irrelevantes. Traduce siempre los
-            términos: "lavado a presión" -> "washdown", "gabinete" ->
-            "enclosure", "refrigeración" -> "cooling". Incluye los códigos de
-            modelo tal cual si los conoces (ej. "DTS 3161 cooling capacity").
+        consulta: qué buscar, EN INGLÉS (los documentos lo están). Incluye los
+            códigos de modelo tal cual: "DTS 3161 cooling capacity".
         solo_tablas: True para restringir a tablas de especificaciones, donde
-            viven las capacidades y dimensiones. Úsalo cuando busques un dato
-            numérico concreto.
+            están capacidades y dimensiones.
     """
     fragmentos = buscar(consulta, k=MAX_FRAGMENTOS, solo_tablas=solo_tablas)
     if not fragmentos:
@@ -101,38 +94,48 @@ def buscar_documentacion(consulta: str, solo_tablas: bool = False) -> str:
 @tool
 def calcular_dimensionamiento(
     disipacion_w: float,
-    t_ambiente_c: float,
-    t_interior_objetivo_c: float,
-    alto_mm: float,
-    ancho_mm: float,
-    fondo_mm: float,
+    t_ambiente_c: float | None = None,
+    t_interior_objetivo_c: float | None = None,
+    alto_mm: float | None = None,
+    ancho_mm: float | None = None,
+    fondo_mm: float | None = None,
 ) -> str:
-    """Estima la carga térmica a extraer de un gabinete y qué tecnología aplica.
+    """Estima la carga térmica de un gabinete y qué tecnología aplica.
 
-    IMPORTANTE: el resultado es una estimación propia, NO un cálculo oficial de
-    Pfannenberg. Debes trasladar al usuario los supuestos que devuelve esta
-    herramienta y la derivación al Pfannenberg Sizing Software (PSS).
+    Solo `disipacion_w` es imprescindible. Los demás parámetros, si no los
+    sabes, pásalos como None y se usarán valores típicos de industria, que la
+    herramienta te devolverá listados como supuestos para que los comuniques.
 
-    Llámala solo cuando tengas los seis parámetros. Si falta alguno, pregúntalo
-    antes; no lo asumas.
+    El resultado es una estimación propia, NO oficial de Pfannenberg: traslada
+    los supuestos y la derivación al PSS.
 
     Args:
-        disipacion_w: potencia disipada por los componentes internos, en vatios.
-        t_ambiente_c: temperatura ambiente máxima del entorno, en °C.
-        t_interior_objetivo_c: temperatura máxima admisible dentro, en °C.
-        alto_mm: alto del gabinete en mm.
-        ancho_mm: ancho del gabinete en mm.
-        fondo_mm: fondo del gabinete en mm.
+        disipacion_w: potencia disipada dentro del gabinete, en vatios.
+        t_ambiente_c: temperatura ambiente máxima en °C, o None.
+        t_interior_objetivo_c: temperatura máxima admisible dentro en °C, o None.
+        alto_mm: alto en mm, o None.
+        ancho_mm: ancho en mm, o None.
+        fondo_mm: fondo en mm, o None.
     """
-    d = dimensionar(
-        disipacion_w=disipacion_w,
-        t_ambiente_c=t_ambiente_c,
-        t_interior_objetivo_c=t_interior_objetivo_c,
-        alto_mm=alto_mm,
-        ancho_mm=ancho_mm,
-        fondo_mm=fondo_mm,
+    caso, supuestos_tipicos = aplicar_valores_tipicos(
+        {
+            "disipacion_w": disipacion_w,
+            "t_ambiente_c": t_ambiente_c,
+            "t_interior_objetivo_c": t_interior_objetivo_c,
+            "alto_mm": alto_mm,
+            "ancho_mm": ancho_mm,
+            "fondo_mm": fondo_mm,
+        }
     )
-    supuestos = "\n".join(f"  - {s}" for s in d.supuestos)
+    d = dimensionar(
+        disipacion_w=caso["disipacion_w"],
+        t_ambiente_c=caso["t_ambiente_c"],
+        t_interior_objetivo_c=caso["t_interior_objetivo_c"],
+        alto_mm=caso["alto_mm"],
+        ancho_mm=caso["ancho_mm"],
+        fondo_mm=caso["fondo_mm"],
+    )
+    supuestos = "\n".join(f"  - {s}" for s in supuestos_tipicos + d.supuestos)
     return (
         f"Superficie efectiva: {d.superficie_efectiva_m2:.2f} m²\n"
         f"ΔT (interior − ambiente): {d.delta_t_k:+.0f} K\n"
