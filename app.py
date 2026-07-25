@@ -4,7 +4,7 @@ from copy import deepcopy
 
 import streamlit as st
 
-from demo.mock_backend import responder  # TODO: -> from src.api import responder
+from src.api import responder
 from src.contracts import CASO_DORADO
 
 

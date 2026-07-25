@@ -53,39 +53,57 @@ def _temperatura(mensaje: str, patron_kw: re.Pattern, patron_num: re.Pattern) ->
     return None
 
 
+# Marca de correccion o hipotesis: "¿y si sube a 45?", "en realidad son 2000 W".
+# Sin esto, la regla de no pisar datos convierte una pregunta legitima en una
+# respuesta segura a otra pregunta distinta, que es peor que no responder.
+_CORRECCION = re.compile(
+    r"\b(y si|que tal si|qué tal si|en realidad|en vez de|cambia|cambio|corrige|"
+    r"corrijo|actualiza|ahora|sube a|baja a|seria|sería|fuese|fuera|mejor|"
+    r"me equivoque|me equivoqué|no,)\b",
+    re.IGNORECASE,
+)
+
+
 def extraer_parametros(mensaje: str, caso: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     """Actualiza `caso` con lo que aparezca en el mensaje.
 
-    Nunca sobreescribe un valor ya conocido: si el usuario ya dio la
-    disipacion, un numero suelto posterior no la pisa. Devuelve el caso
-    actualizado y las trazas de lo que se extrajo.
+    Por defecto no sobreescribe un valor ya conocido, para no corromper el caso
+    con numeros sueltos. La excepcion es cuando el mensaje viene marcado como
+    correccion o hipotesis ("y si...", "en realidad..."): ahi el usuario esta
+    pidiendo explicitamente cambiar el dato, e ignorarlo daria una recomendacion
+    que responde a otra pregunta.
     """
     caso = dict(caso)
     trazas: list[str] = []
+    forzar = bool(_CORRECCION.search(mensaje))
+    if forzar:
+        trazas.append("mensaje detectado como corrección/hipótesis: se permiten sobrescrituras")
 
-    if dim := _DIMENSIONES.search(mensaje):
-        if caso.get("alto_mm") is None:
-            alto, ancho, fondo = (float(g) for g in dim.groups())
-            caso["alto_mm"], caso["ancho_mm"], caso["fondo_mm"] = alto, ancho, fondo
-            trazas.append(f"extraido: dimensiones {alto:.0f}x{ancho:.0f}x{fondo:.0f} mm")
+    def libre(campo: str) -> bool:
+        return forzar or caso.get(campo) is None
 
-    if caso.get("disipacion_w") is None:
+    if (dim := _DIMENSIONES.search(mensaje)) and libre("alto_mm"):
+        alto, ancho, fondo = (float(g) for g in dim.groups())
+        caso["alto_mm"], caso["ancho_mm"], caso["fondo_mm"] = alto, ancho, fondo
+        trazas.append(f"extraido: dimensiones {alto:.0f}x{ancho:.0f}x{fondo:.0f} mm")
+
+    if libre("disipacion_w"):
         for m in _POTENCIA.finditer(mensaje):
             valor = float(m.group(1).replace(",", "."))
-            unidad = m.group(2).lower()
-            if unidad == "kw":
+            if m.group(2).lower() == "kw":
                 valor *= 1000
-            # Ignora capacidades de equipo mencionadas de pasada, no la carga.
+            # Solo la primera cifra: evita tomar la capacidad de un equipo
+            # mencionado de pasada como si fuera la carga del gabinete.
             caso["disipacion_w"] = valor
             trazas.append(f"extraido: disipacion {valor:.0f} W")
             break
 
-    if caso.get("t_ambiente_c") is None:
+    if libre("t_ambiente_c"):
         if (valor := _temperatura(mensaje, _AMBIENTE_KW, _AMBIENTE_NUM)) is not None:
             caso["t_ambiente_c"] = valor
             trazas.append(f"extraido: temperatura ambiente {valor:.0f} °C")
 
-    if caso.get("t_interior_objetivo_c") is None:
+    if libre("t_interior_objetivo_c"):
         if (valor := _temperatura(mensaje, _INTERIOR_KW, _INTERIOR_NUM)) is not None:
             caso["t_interior_objetivo_c"] = valor
             trazas.append(f"extraido: temperatura interior objetivo {valor:.0f} °C")

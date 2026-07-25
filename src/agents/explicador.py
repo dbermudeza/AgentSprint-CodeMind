@@ -21,12 +21,39 @@ def _fuente_de(p: Producto) -> list[dict[str, Any]]:
     return [{"fuente": p.fuente, "pagina": p.pagina, "cita": p.cita()}]
 
 
+def holgura_de(p: Producto, dim: Dimensionamiento) -> float:
+    """Watts que sobran por encima de la carga requerida."""
+    util = (p.capacidad_valor or 0) * (dim.delta_t_k if p.capacidad_unidad == "W/K" else 1)
+    return util - dim.rango_max_w
+
+
+def elegir_alternativa(candidatos: list[Producto], principal: Producto) -> Producto | None:
+    """Siguiente escalon REAL de capacidad, no un empate.
+
+    El catalogo tiene modelos distintos con la misma capacidad (DTS 3161 y
+    DTS 3181 dan ambos 1235 W). Ofrecer uno de ellos como "alternativa con mas
+    margen" seria falso: el margen es identico. Se busca primero una capacidad
+    estrictamente mayor y solo si no existe se cae al empate, que se describe
+    como lo que es.
+    """
+    cap_principal = principal.capacidad_valor or 0
+    for p in candidatos:
+        if p.modelo != principal.modelo and (p.capacidad_valor or 0) > cap_principal:
+            return p
+    for p in candidatos:
+        if p.modelo != principal.modelo:
+            return p
+    return None
+
+
 def construir_recomendacion(
-    p: Producto, dim: Dimensionamiento, es_principal: bool
+    p: Producto,
+    dim: Dimensionamiento,
+    es_principal: bool,
+    holgura_principal: float | None = None,
 ) -> Recomendacion:
     capacidad = capacidad_legible(p, dim.delta_t_k)
-    margen = (p.capacidad_valor or 0) * (dim.delta_t_k if p.capacidad_unidad == "W/K" else 1)
-    holgura = margen - dim.rango_max_w
+    holgura = holgura_de(p, dim)
 
     if es_principal:
         porque = (
@@ -34,11 +61,17 @@ def construir_recomendacion(
             f"que es el ajuste más ceñido del catálogo para esta carga. "
             "Sobredimensionar encarece el equipo y hace ciclar el compresor sin necesidad."
         )
+    elif holgura_principal is not None and holgura > holgura_principal + 1:
+        porque = (
+            f"Sube a {holgura:.0f} W de holgura, frente a los {holgura_principal:.0f} W "
+            "de la opción principal. Conviene si se prevé ampliar la carga del gabinete "
+            "o si la temperatura ambiente puede superar la indicada."
+        )
     else:
         porque = (
-            f"Alternativa con más margen ({holgura:.0f} W de holgura). "
-            "Conviene si se prevé ampliar la carga del gabinete o si la temperatura "
-            "ambiente puede superar la indicada."
+            f"Misma capacidad útil que la opción principal ({capacidad}); no aporta margen "
+            "adicional, sino que difiere en tensión de alimentación o dimensiones. "
+            "Útil si el espacio disponible o la acometida eléctrica no encajan con la principal."
         )
 
     if p.confianza != "alta":

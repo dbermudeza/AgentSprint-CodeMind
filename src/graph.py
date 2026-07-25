@@ -9,7 +9,12 @@ from __future__ import annotations
 
 from langgraph.graph import END, StateGraph
 
-from src.agents.explicador import construir_recomendacion, redactar_mensaje
+from src.agents.explicador import (
+    construir_recomendacion,
+    elegir_alternativa,
+    holgura_de,
+    redactar_mensaje,
+)
 from src.agents.extractor import extraer_parametros
 from src.state import CAMPOS_CRITICOS, AgentState, faltantes
 from src.tools.catalogo import cargar_catalogo, filtrar_candidatos
@@ -103,10 +108,13 @@ def nodo_explicar(state: AgentState) -> AgentState:
     dim = state["dimensionamiento"]
     candidatos = state["candidatos"]
 
-    principal = construir_recomendacion(candidatos[0], dim, True) if candidatos else None
-    alternativa = (
-        construir_recomendacion(candidatos[1], dim, False) if len(candidatos) > 1 else None
-    )
+    principal = alternativa = None
+    if candidatos:
+        principal = construir_recomendacion(candidatos[0], dim, True)
+        if alt := elegir_alternativa(candidatos, candidatos[0]):
+            alternativa = construir_recomendacion(
+                alt, dim, False, holgura_principal=holgura_de(candidatos[0], dim)
+            )
 
     state["recomendacion"] = principal
     state["alternativa"] = alternativa
