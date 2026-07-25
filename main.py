@@ -1,6 +1,15 @@
 """Chat por consola contra el copiloto. Util para probar sin levantar la UI.
 
-    python main.py
+    python main.py                 chat normal
+    python main.py --trazas        muestra que herramientas llamo y con que
+                                   argumentos, para auditar la respuesta
+
+Comandos dentro del chat:
+
+    /fuente <consulta>   busca en el corpus y muestra el texto crudo con su
+                         pagina, para contrastar una cita a mano
+    /trazas              alterna la vista de trazas
+    salir                terminar
 
 Usa el mismo backend que la interfaz (src/api.responder), asi que lo que se ve
 aqui es exactamente lo que vera la demo.
@@ -24,6 +33,20 @@ Ejemplo: gabinete 2000x800x600 mm, 1200 W, ambiente 35 grados, objetivo 40 dentr
 """
 
 
+def _mostrar_fuente(consulta: str) -> None:
+    """Texto crudo del corpus para contrastar una cita a mano."""
+    from src.rag.hibrido import buscar
+
+    fragmentos = buscar(consulta, k=4)
+    if not fragmentos:
+        print("  sin resultados")
+        return
+    for f in fragmentos:
+        print(f"\n  ── {f.cita()}  [{f.tipo}]")
+        for linea in f.texto[:600].splitlines():
+            print(f"     {linea}")
+
+
 def main() -> None:
     from src.api import responder
 
@@ -41,6 +64,10 @@ def main() -> None:
             "   Consigue una clave gratuita en https://console.groq.com/keys\n"
         )
 
+    ver_trazas = "--trazas" in sys.argv
+    print(f"Trazas: {'activadas' if ver_trazas else 'desactivadas (--trazas o /trazas)'}")
+    print("Comando: /fuente <consulta> para ver el texto crudo del corpus\n")
+
     sesion: dict = {}
     while True:
         try:
@@ -52,6 +79,13 @@ def main() -> None:
             continue
         if mensaje.lower() in {"salir", "exit", "quit"}:
             return
+        if mensaje.lower() == "/trazas":
+            ver_trazas = not ver_trazas
+            print(f"  trazas {'activadas' if ver_trazas else 'desactivadas'}")
+            continue
+        if mensaje.lower().startswith("/fuente"):
+            _mostrar_fuente(mensaje[7:].strip())
+            continue
 
         try:
             r = responder(mensaje, sesion)
@@ -69,6 +103,10 @@ def main() -> None:
         if r["fuentes"]:
             citas = ", ".join(f.get("cita", "") for f in r["fuentes"])
             print(f"\nFuentes: {citas}")
+        if ver_trazas and r["trazas"]:
+            print("\nTrazas (qué hizo el agente):")
+            for t in r["trazas"]:
+                print(f"  · {t}")
 
 
 if __name__ == "__main__":
