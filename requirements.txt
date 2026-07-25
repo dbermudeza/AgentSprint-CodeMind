@@ -8,3 +8,5 @@ langgraph==1.2.9
 pydantic==2.13.4
 python-dotenv==1.2.2
 ddgs==9.14.4
+pypdf==6.14.2
+pdfplumber==0.11.10

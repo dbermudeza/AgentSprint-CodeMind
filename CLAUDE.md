@@ -5,9 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project — Pfannenberg Copilot
 
 AgentSprint-CodeMind ("Agente Pfannenberg") es un proyecto de agente en Python en etapa temprana,
-construido para el hackathon AgentSprint Medellín 2026. Todavía no hay código de aplicación — solo
-un manifiesto de dependencias (`requirements.txt`) y scaffolding de entorno (`.venv`, `.env`,
-`.gitignore`).
+construido para el hackathon AgentSprint Medellín 2026. Todavía no hay código de aplicación, pero
+el corpus documental ya está listo: 60 PDFs oficiales en `data/`, procesados a chunks con
+`scripts/process_pdfs.py` (ver "Corpus de datos").
 
 La demo debe optimizarse para **una sola historia de valor**: ayudar a ventas/soporte a resolver un
 caso real de selección térmica de gabinete en minutos, con preguntas mínimas, recomendación
@@ -21,7 +21,10 @@ ruta de demo (dimensionamiento térmico de gabinete):
 1. Haga intake guiado del caso (3–5 preguntas máximo si faltan datos).
 2. Recupere contexto desde documentación pública oficial de Pfannenberg (RAG focalizado, no
    generalista).
-3. Calcule/valide la capacidad térmica requerida y filtre opciones candidatas.
+3. Estime el rango de capacidad térmica requerida y filtre opciones candidatas contra las
+   especificaciones reales del catálogo. ⚠️ Ver "Restricción sobre el cálculo térmico": el corpus
+   no publica la fórmula de dimensionamiento, así que el cálculo se presenta como estimación con
+   supuestos explícitos, no como resultado certificado.
 4. Entregue una recomendación principal + una alternativa razonable, explicando por qué encaja,
    qué supuestos se usaron, qué opciones se descartaron y por qué, y qué fuente respalda cada
    decisión.
@@ -46,6 +49,54 @@ minutos y debe sentirse "útil para ventas/soporte", no solo "correcto técnicam
 - Si no hay evidencia suficiente, responder con incertidumbre explícita y los datos que faltan.
 - Priorizar una solución end-to-end simple sobre una arquitectura ambiciosa pero incompleta.
 
+## Corpus de datos
+
+60 PDFs oficiales de Pfannenberg en `data/` (catálogos, brochures, flyers sectoriales, case
+studies, whitepapers). Se procesan con:
+
+```bash
+python scripts/process_pdfs.py    # data/*.pdf -> data/processed/chunks.jsonl
+```
+
+El script extrae **tablas y prosa por separado**: las tablas se serializan a Markdown conservando
+la fila de cabecera, porque un extractor plano aplasta las columnas y deja valores sin dueño
+(`Power consumption 50 | 56 310 | 420 W` para tres modelos distintos). Cada chunk lleva `source`,
+`page` y `type` (`table` | `text`) — `source` + `page` es lo que permite cumplir la regla de citar
+la fuente exacta. Los chunks duplicados se descartan por hash.
+
+Al añadir PDFs nuevos a `data/`, volver a correr el script (reescribe el `.jsonl` completo).
+
+### Qué respalda el corpus
+
+- Especificaciones por modelo en tablas resumen: `PAS 6043 | 20 W/K | 230 V | 618 x 380 x 212 mm`.
+- Números de artículo para cerrar hacia una referencia comprable (`12981111055`).
+- Familias: DTS/DTI/DTT (refrigeración), PAS (aire/aire), PWS (aire/agua), chillers, señalización.
+
+### Restricción sobre el cálculo térmico
+
+**El corpus no contiene la fórmula de dimensionamiento térmico.** No hay k-factor, superficie
+efectiva de gabinete ni W/m²K. Los documentos delegan el cálculo al **Pfannenberg Sizing Software
+(PSS)** — hay ~230 menciones; textual de `Thermal_Management_EN_V4.pdf` p52: *"Pfannenberg Sizing
+Software determines your cooling requirements, calculates the necessary cooling capacity"*.
+
+Consecuencia para el agente, dado el invariante "no inventar fórmulas":
+
+- Puede recoger los parámetros del caso, estimar un rango de capacidad y **filtrar productos reales
+  por sus specs citadas** — ahí es donde está el valor demostrable.
+- Debe marcar la estimación como supuesto propio y **derivar al PSS** para el dimensionamiento
+  certificado. No presentar el cálculo como respaldado por la documentación oficial.
+
+### Zonas de baja confianza
+
+- **Fichas multi-columna**: algunas filas tienen más valores que modelos (variantes 50/60 Hz,
+  celdas combinadas). Si la alineación es ambigua, preguntar o citar el rango — no adivinar.
+- **`Pfannenberg_Cut-out_compatibility_list...pdf`**: matriz de compatibilidad que se extrae como
+  ruido ilegible, además de ser versión 1.3 de 2017. **No usar para afirmar compatibilidades**
+  (choca directo con el invariante correspondiente).
+- **Case studies y flyers** (~28% del corpus) son material de marketing: sirven para argumentar
+  aplicación, no para specs.
+- No hay manuales de operación ni listas de repuestos reales, pese a que el alcance los menciona.
+
 ## Arquitectura objetivo
 
 Componentes del pipeline (mapean 1:1 con el flujo intake → cálculo → comparación → explicación
@@ -55,7 +106,8 @@ descrito arriba):
   buscar.
 - **Intake guiado**: recopila los parámetros mínimos del gabinete y del ambiente.
 - **RAG focalizado**: busca solo en una base pequeña de PDFs/documentos oficiales relevantes.
-- **Motor de cálculo**: estima la necesidad térmica y compara contra opciones candidatas.
+- **Motor de cálculo**: estima la necesidad térmica y compara contra opciones candidatas. La
+  fórmula usada debe estar declarada en código como supuesto propio, nunca atribuida a Pfannenberg.
 - **Explicador**: arma la respuesta final con recomendación, alternativa, fuentes y supuestos.
 - **Memoria de sesión**: guarda los datos del caso actual durante la conversación (no persistente).
 
@@ -75,6 +127,8 @@ código de orquestación:
 - `pydantic` — validación de datos/schemas
 - `python-dotenv` — carga config desde `.env`
 - `ddgs` — búsqueda DuckDuckGo (probablemente como tool del agente)
+- `pdfplumber` — extracción de PDFs preservando tablas (usado por `scripts/process_pdfs.py`)
+- `pypdf` — dependencia de lectura de PDF
 
 Para una demo de 2.5 horas, preferir una implementación sencilla sobre una arquitectura "perfecta":
 una sola ruta de grafo, una base documental pequeña y una interfaz clara.
