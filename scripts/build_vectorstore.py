@@ -1,8 +1,8 @@
 """Construye la base vectorial ChromaDB desde data/processed/chunks.jsonl.
 
-Requiere OPENAI_API_KEY en .env: los embeddings se calculan con la API. Indexar
-el corpus completo (~2.100 chunks) cuesta del orden de 0.02 USD con
-text-embedding-3-small y tarda un par de minutos.
+Por defecto usa el modelo de embeddings local (all-MiniLM-L6-v2 via ONNX,
+empaquetado con chromadb): sin API key, sin coste y sin cuota. La primera
+ejecucion descarga ~80 MB de modelo y luego queda en cache.
 
 Solo hay que ejecutarlo una vez, o cuando cambie el corpus:
 
@@ -12,26 +12,25 @@ from __future__ import annotations
 
 import sys
 import time
+from pathlib import Path
 
-from src.config import get_settings
-from src.rag.vectorstore import CHROMA_DIR, indexar
+# Permite ejecutar el script directamente (`python scripts/build_vectorstore.py`)
+# sin exigir `python -m` ni tener el proyecto instalado.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from src.rag.embeddings import describir_motor  # noqa: E402
+from src.rag.vectorstore import CHROMA_DIR, indexar  # noqa: E402
 
 
 def main() -> None:
-    if not get_settings().hay_llm:
-        print(
-            "Falta OPENAI_API_KEY en .env.\n"
-            "Los embeddings la necesitan. Sin base vectorial el sistema sigue\n"
-            "funcionando solo con BM25, pero pierde la búsqueda semántica.",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
+    print(f"Motor de embeddings: {describir_motor()}")
+    print(f"Destino: {CHROMA_DIR}\n")
 
-    print(f"Indexando en {CHROMA_DIR} ...")
     inicio = time.time()
     total = indexar()
+
     print(f"\n{total} chunks indexados en {time.time() - inicio:.0f} s")
-    print("Listo: la búsqueda híbrida (BM25 + vectorial) ya está activa.")
+    print("Búsqueda híbrida (BM25 + vectorial) activa.")
 
 
 if __name__ == "__main__":

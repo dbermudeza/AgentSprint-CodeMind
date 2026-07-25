@@ -1,0 +1,20 @@
+# Tema fijado explicitamente.
+#
+# Sin esto, Streamlit hereda el tema del sistema operativo de cada maquina: en
+# modo oscuro pinta el texto en blanco, y como la hoja de estilos de la app
+# define un fondo claro, el texto quedaba ilegible sobre el. Fijar el tema
+# aqui hace que la demo se vea igual en cualquier equipo.
+
+[theme]
+base = "light"
+primaryColor = "#0B5FA5"
+backgroundColor = "#F7F9FC"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#16233A"
+font = "sans serif"
+
+[server]
+headless = true
+
+[browser]
+gatherUsageStats = false

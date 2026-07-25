@@ -17,8 +17,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from src.config import crear_embeddings
 from src.contracts import Fragmento
+from src.rag.embeddings import crear_embeddings
 
 RAIZ = Path(__file__).resolve().parents[2]
 CHUNKS_PATH = RAIZ / "data" / "processed" / "chunks.jsonl"
@@ -41,12 +41,10 @@ def cargar_chunks() -> list[dict]:
 
 
 def _abrir(solo_lectura: bool = True):
-    """Abre la coleccion Chroma persistida. None si falta la API key."""
+    """Abre la coleccion Chroma persistida. None si aun no hay indice."""
+    if solo_lectura and not existe_indice():
+        return None
     embeddings = crear_embeddings()
-    if embeddings is None:
-        return None
-    if solo_lectura and not CHROMA_DIR.exists():
-        return None
 
     from langchain_chroma import Chroma
 
@@ -74,11 +72,6 @@ def indexar(lote: int = 200) -> int:
     CHROMA_DIR.mkdir(parents=True, exist_ok=True)
 
     store = _abrir(solo_lectura=False)
-    if store is None:
-        raise RuntimeError(
-            "Falta OPENAI_API_KEY en .env: los embeddings la necesitan para indexar."
-        )
-
     chunks = cargar_chunks()
     for inicio in range(0, len(chunks), lote):
         trozo = chunks[inicio : inicio + lote]
