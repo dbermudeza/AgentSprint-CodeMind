@@ -4,24 +4,20 @@ Agente Pfanneberg
 ## Estructura del proyecto
 
 ```
-claude_proyecto/
+
 ├── main.py                  # Punto de entrada: bucle de conversación por consola
 ├── requirements.txt         # Dependencias del proyecto
 ├── .env                     # Variables de entorno reales (NO se sube al repo)
 ├── .env.example             # Plantilla de variables de entorno
 ├── .gitignore
-├── ROADMAP.md                # Hoja de ruta / guion de aprendizaje del proyecto
 └── src/
     ├── config.py             # Configuración centralizada (lee variables de entorno)
     ├── state.py               # Definición del estado del grafo (AgentState)
     ├── graph.py                # Ensamblado del grafo de LangGraph (nodos y bordes)
     ├── agents/
     │   ├── __init__.py
-    │   └── chat_agent.py       # Nodo del agente: invoca al LLM con herramientas
     └── tools/
-        ├── __init__.py         # Registro central de herramientas (all_tools)
-        ├── file_reader.py      # Herramienta: lectura de archivos locales
-        └── web_search.py       # Herramienta: búsqueda web (DuckDuckGo)
+        ├── __init__.py         # Registro 
 ```
 
 ### Por qué esta separación
