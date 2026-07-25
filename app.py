@@ -279,3 +279,32 @@ with right:
             else:
                 for trace in trazas:
                     st.markdown(f"- {trace}")
+
+        # Permite contrastar una cita sin salir de la app: el agente afirma
+        # "1235 W según p.21" y aquí se ve el texto real de esa página.
+        with st.expander("🔍 Verificar en el corpus", expanded=False):
+            st.caption(
+                "Busca directamente en los 60 PDFs y muestra el texto original, "
+                "para comprobar a mano lo que afirma el agente."
+            )
+            consulta = st.text_input(
+                "Buscar (mejor en inglés, que es el idioma de los documentos)",
+                placeholder="DTS 3161 cooling capacity",
+                key="busqueda_corpus",
+            )
+            solo_tablas = st.checkbox(
+                "Solo tablas de especificaciones", value=True, key="corpus_tablas"
+            )
+            if consulta:
+                from src.rag.hibrido import buscar
+
+                resultados = buscar(consulta, k=4, solo_tablas=solo_tablas)
+                if not resultados:
+                    st.warning("Sin resultados en la documentación oficial.")
+                for frag in resultados:
+                    st.markdown(
+                        f'<span class="fuente-chip">{frag.cita()}</span> '
+                        f'<span class="muted">{frag.tipo}</span>',
+                        unsafe_allow_html=True,
+                    )
+                    st.code(frag.texto[:900], language=None)
