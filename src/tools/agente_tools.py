@@ -9,6 +9,8 @@ herramienta usar; los numeros salen siempre de codigo verificable.
 """
 from __future__ import annotations
 
+import re
+
 from langchain_core.tools import tool
 
 from src.rag.hibrido import buscar
@@ -22,6 +24,38 @@ from src.tools.dimensionar import dimensionar
 MAX_CHARS_FRAGMENTO = 420
 MAX_FRAGMENTOS = 3
 MAX_CANDIDATOS = 4
+
+# Codigos de modelo: familia de 2-4 letras + 3-5 digitos ("DTS 3161", "PF 42.500").
+_CODIGO_MODELO = re.compile(r"\b([A-Z]{2,4})\s*[-.]?\s*(\d{2,3}[.,]?\d{2,3})\b")
+
+
+def _modelos_en(texto: str) -> set[str]:
+    """Codigos de modelo presentes, normalizados a 'DTS3161'."""
+    return {
+        f"{fam.upper()}{num.replace('.', '').replace(',', '')}"
+        for fam, num in _CODIGO_MODELO.findall(texto.upper())
+    }
+
+
+def _aviso_de_atribucion(consulta: str, texto_fragmento: str) -> str:
+    """Avisa cuando el fragmento no menciona el modelo por el que se pregunto.
+
+    Un fragmento puede ser tematicamente cercano y aun asi describir OTRO
+    producto. El modelo tiende entonces a atribuirle la especificacion al que
+    se le pregunto, con una cita real que hace parecer verificada una relacion
+    inventada. Ese error es invisible, y es justo el que el proyecto prohibe.
+    """
+    pedidos = _modelos_en(consulta)
+    if not pedidos:
+        return ""
+    if pedidos & _modelos_en(texto_fragmento):
+        return ""
+    return (
+        "\n⚠️ ESTE FRAGMENTO NO MENCIONA "
+        + " ni ".join(sorted(pedidos))
+        + ". Describe otro producto: NO le atribuyas estas especificaciones al "
+        "modelo por el que se preguntó."
+    )
 
 
 @tool
@@ -52,8 +86,16 @@ def buscar_documentacion(consulta: str, solo_tablas: bool = False) -> str:
     partes = []
     for f in fragmentos:
         texto = f.texto[:MAX_CHARS_FRAGMENTO]
-        partes.append(f"[FUENTE: {f.cita()}]\n{texto}")
-    return "\n\n---\n\n".join(partes)
+        partes.append(f"[FUENTE: {f.cita()}]\n{texto}{_aviso_de_atribucion(consulta, f.texto)}")
+
+    cuerpo = "\n\n---\n\n".join(partes)
+    if all(_aviso_de_atribucion(consulta, f.texto) for f in fragmentos):
+        cuerpo += (
+            "\n\n⚠️ NINGÚN fragmento menciona el modelo consultado. La "
+            "documentación no respalda una respuesta sobre él: dile al usuario "
+            "que no puedes confirmarlo, en vez de usar datos de otro producto."
+        )
+    return cuerpo
 
 
 @tool
