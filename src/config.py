@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     modelo_llm: str = Field(default="gpt-4o-mini", alias="MODELO_LLM")
     # 0.0: las respuestas tecnicas deben ser reproducibles entre ejecuciones.
     temperatura: float = Field(default=0.0, alias="TEMPERATURA_LLM")
+    # Embeddings para la base vectorial. El modelo "small" basta de sobra para
+    # 2.100 chunks y cuesta ~0.02 USD indexar el corpus entero.
+    modelo_embeddings: str = Field(
+        default="text-embedding-3-small", alias="MODELO_EMBEDDINGS"
+    )
 
     @property
     def hay_llm(self) -> bool:
@@ -54,5 +59,23 @@ def crear_llm():
     return ChatOpenAI(
         model=settings.modelo_llm,
         temperature=settings.temperatura,
+        api_key=settings.openai_api_key,
+    )
+
+
+def crear_embeddings():
+    """Factory de embeddings para la base vectorial.
+
+    Devuelve None sin API key: en ese caso el retrieval opera solo con BM25,
+    que no necesita credenciales.
+    """
+    settings = get_settings()
+    if not settings.hay_llm:
+        return None
+
+    from langchain_openai import OpenAIEmbeddings
+
+    return OpenAIEmbeddings(
+        model=settings.modelo_embeddings,
         api_key=settings.openai_api_key,
     )

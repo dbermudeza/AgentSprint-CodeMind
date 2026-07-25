@@ -3,3 +3,7 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Base vectorial: artefacto binario regenerable con
+# `python scripts/build_vectorstore.py`.
+data/processed/chroma/
