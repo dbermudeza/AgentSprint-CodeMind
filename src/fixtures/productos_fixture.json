@@ -1,0 +1,93 @@
+[
+  {
+    "modelo": "DTI 6201",
+    "familia": "DTI",
+    "tipo": "refrigeracion activa",
+    "capacidad_valor": 1150,
+    "capacidad_unidad": "W",
+    "tension": "230 V AC 50/60 Hz",
+    "dimensiones_mm": "485 x 1537 x 158",
+    "articulo": null,
+    "fuente": "Pfannenberg_Compact_catalogue_30_en.pdf",
+    "pagina": 16,
+    "confianza": "alta"
+  },
+  {
+    "modelo": "DTI 6301",
+    "familia": "DTI",
+    "tipo": "refrigeracion activa",
+    "capacidad_valor": 1550,
+    "capacidad_unidad": "W",
+    "tension": "230 V AC 50/60 Hz",
+    "dimensiones_mm": "485 x 1537 x 218",
+    "articulo": null,
+    "fuente": "Pfannenberg_Compact_catalogue_30_en.pdf",
+    "pagina": 16,
+    "confianza": "alta"
+  },
+  {
+    "modelo": "DTI 6401",
+    "familia": "DTI",
+    "tipo": "refrigeracion activa",
+    "capacidad_valor": 2000,
+    "capacidad_unidad": "W",
+    "tension": "230 V AC 50/60 Hz",
+    "dimensiones_mm": "485 x 1537 x 278",
+    "articulo": null,
+    "fuente": "Pfannenberg_Compact_catalogue_30_en.pdf",
+    "pagina": 16,
+    "confianza": "alta"
+  },
+  {
+    "modelo": "DTI 6501",
+    "familia": "DTI",
+    "tipo": "refrigeracion activa",
+    "capacidad_valor": 2500,
+    "capacidad_unidad": "W",
+    "tension": "400/460 V 3~ AC 50/60 Hz",
+    "dimensiones_mm": "485 x 1537 x 278",
+    "articulo": null,
+    "fuente": "Pfannenberg_Compact_catalogue_30_en.pdf",
+    "pagina": 16,
+    "confianza": "alta"
+  },
+  {
+    "modelo": "PAS 6043",
+    "familia": "PAS",
+    "tipo": "aire/aire",
+    "capacidad_valor": 20,
+    "capacidad_unidad": "W/K",
+    "tension": "230 V",
+    "dimensiones_mm": "618 x 380 x 212",
+    "articulo": "12981111055",
+    "fuente": "Thermal_Management_EN_V4.pdf",
+    "pagina": 45,
+    "confianza": "alta"
+  },
+  {
+    "modelo": "PAS 6133",
+    "familia": "PAS",
+    "tipo": "aire/aire",
+    "capacidad_valor": 65,
+    "capacidad_unidad": "W/K",
+    "tension": "230 V",
+    "dimensiones_mm": "937 x 410 x 199",
+    "articulo": "12982411055",
+    "fuente": "Thermal_Management_EN_V4.pdf",
+    "pagina": 45,
+    "confianza": "alta"
+  },
+  {
+    "modelo": "PAS 6203",
+    "familia": "PAS",
+    "tipo": "aire/aire",
+    "capacidad_valor": 100,
+    "capacidad_unidad": "W/K",
+    "tension": "230 V",
+    "dimensiones_mm": "1555 x 485 x 252",
+    "articulo": "12983611055",
+    "fuente": "Thermal_Management_EN_V4.pdf",
+    "pagina": 45,
+    "confianza": "alta"
+  }
+]
