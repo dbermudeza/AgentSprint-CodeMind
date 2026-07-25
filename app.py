@@ -228,7 +228,18 @@ with left:
                 answer = responder(prompt, st.session_state.sesion)
             except Exception as exc:
                 # Un fallo silencioso aquí es indistinguible de "no responde".
-                st.error(f"No se pudo procesar la consulta: {type(exc).__name__}: {exc}")
+                detalle = str(exc)
+                if "rate limit" in detalle.lower() or "429" in detalle:
+                    st.error(
+                        "**Cuota diaria de Groq agotada.** El tier gratuito limita los "
+                        "tokens por día y se han consumido.\n\n"
+                        "Opciones: esperar al reinicio diario, usar un modelo con más "
+                        "cuota (`MODELO_GROQ=llama-3.1-8b-instant` en `.env`), o quitar "
+                        "`GROQ_API_KEY` para seguir en modo determinístico, que no "
+                        "necesita credenciales."
+                    )
+                else:
+                    st.error(f"No se pudo procesar la consulta: {type(exc).__name__}: {exc}")
                 st.stop()
         _record_turn(prompt, answer)
         st.rerun()

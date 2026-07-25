@@ -15,7 +15,13 @@ from src.rag.hibrido import buscar
 from src.tools.catalogo import capacidad_legible, cargar_catalogo, filtrar_candidatos
 from src.tools.dimensionar import dimensionar
 
-MAX_CHARS_FRAGMENTO = 700
+# El tier gratuito de Groq limita tokens por dia, y cada fragmento que se
+# devuelve al modelo los consume. Se recortan a lo justo para poder citar y
+# justificar: mas texto no mejoraba la respuesta y agotaba la cuota en pocas
+# consultas.
+MAX_CHARS_FRAGMENTO = 420
+MAX_FRAGMENTOS = 3
+MAX_CANDIDATOS = 4
 
 
 @tool
@@ -36,7 +42,7 @@ def buscar_documentacion(consulta: str, solo_tablas: bool = False) -> str:
             viven las capacidades y dimensiones. Úsalo cuando busques un dato
             numérico concreto.
     """
-    fragmentos = buscar(consulta, k=5, solo_tablas=solo_tablas)
+    fragmentos = buscar(consulta, k=MAX_FRAGMENTOS, solo_tablas=solo_tablas)
     if not fragmentos:
         return (
             "Sin resultados en la documentación oficial. No inventes el dato: "
@@ -125,7 +131,7 @@ def consultar_catalogo(tecnologia: str, carga_w: float, delta_t_k: float) -> str
         )
 
     lineas = [f"Candidatos para {carga_w:.0f} W ({tecnologia}), del más ajustado al mayor:"]
-    for p in candidatos[:6]:
+    for p in candidatos[:MAX_CANDIDATOS]:
         aviso = " ⚠️ atribución ambigua en la tabla de origen" if p.confianza != "alta" else ""
         articulo = f", art. {p.articulo}" if p.articulo else ""
         lineas.append(
@@ -133,7 +139,7 @@ def consultar_catalogo(tecnologia: str, carga_w: float, delta_t_k: float) -> str
             f"[FUENTE: {p.cita()}]{aviso}"
         )
     if descartes:
-        lineas.append("Descartados por capacidad insuficiente: " + "; ".join(descartes[:4]))
+        lineas.append("Descartados por capacidad insuficiente: " + "; ".join(descartes[:3]))
     return "\n".join(lineas)
 
 

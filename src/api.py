@@ -17,6 +17,7 @@ sean intercambiables cambiando un unico import en app.py.
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from src.agents.explicador import (
@@ -27,13 +28,20 @@ from src.agents.explicador import (
 from src.agents.extractor import extraer_parametros
 from src.contracts import Respuesta
 from src.graph import GRAFO
-from src.state import estado_inicial, faltantes
+from src.state import CAMPOS_CRITICOS, estado_inicial, faltantes
 from src.tools.catalogo import cargar_catalogo, filtrar_candidatos
 from src.tools.dimensionar import dimensionar
 
 # Se crea una sola vez: montar el agente en cada turno anadiria latencia inutil.
 _AGENTE = None
 _AGENTE_RESUELTO = False
+
+# Marcas de consulta a la documentacion, frente a la entrega de datos del caso.
+_INTERROGATIVA = re.compile(
+    r"\?|\b(qu[eé]|cu[aá]l|cu[aá]les|c[oó]mo|d[oó]nde|por qu[eé]|existe|hay|"
+    r"tienen|sirve|recomienda[sn]?|diferencia|compara|explica|dime)\b",
+    re.IGNORECASE,
+)
 
 
 def _agente():
@@ -44,6 +52,29 @@ def _agente():
         _AGENTE = crear_agente()
         _AGENTE_RESUELTO = True
     return _AGENTE
+
+
+def _es_limite_de_cuota(exc: Exception) -> bool:
+    """Distingue un agotamiento de cuota de un fallo real del codigo.
+
+    Solo la cuota justifica degradar en silencio; cualquier otro error debe
+    propagarse para que no quede oculto.
+    """
+    detalle = str(exc).lower()
+    return "rate limit" in detalle or "429" in detalle or "quota" in detalle
+
+
+def _es_pregunta_abierta(mensaje: str, caso: dict[str, Any]) -> bool:
+    """¿Es una consulta que solo el LLM podria responder?
+
+    Se considera abierta si no aporta ningun parametro del gabinete y no hay
+    caso previo en marcha. Un "necesito enfriar un armario" sin datos sigue
+    siendo intake valido, porque no interroga a la documentacion; una pregunta
+    sobre productos o aplicaciones, en cambio, exige buscar y razonar.
+    """
+    if any(caso.get(c) is not None for c in CAMPOS_CRITICOS):
+        return False  # hay un caso en marcha: el flujo de intake aplica
+    return bool(_INTERROGATIVA.search(mensaje))
 
 
 def _panel_estructurado(caso: dict[str, Any]) -> dict[str, Any]:
@@ -145,8 +176,20 @@ def responder(mensaje: str, sesion: dict[str, Any]) -> dict[str, Any]:
     caso, trazas_extraccion = extraer_parametros(mensaje, sesion.get("caso", {}))
     sesion["caso"] = caso
 
+    texto = trazas_agente = None
     if _agente() is not None:
-        texto, trazas_agente = _correr_agente(mensaje, sesion)
+        try:
+            texto, trazas_agente = _correr_agente(mensaje, sesion)
+        except Exception as exc:
+            # La cuota gratuita de Groq se agota por tokens/dia. Antes que dejar
+            # la demo sin respuesta, se cae al modo deterministico: cubre el
+            # dimensionamiento y cumple los invariantes sin depender del LLM.
+            if not _es_limite_de_cuota(exc):
+                raise
+            texto = None
+            sesion.pop("mensajes", None)  # historial a medias, mejor descartarlo
+
+    if texto is not None:
         panel = _panel_estructurado(caso)
         respuesta = Respuesta(
             mensaje=texto,
@@ -157,21 +200,63 @@ def responder(mensaje: str, sesion: dict[str, Any]) -> dict[str, Any]:
             fuentes=panel.get("fuentes", []),
             trazas=["modo: agente ReAct con LLM"]
             + trazas_extraccion
-            + trazas_agente
+            + (trazas_agente or [])
             + panel.get("trazas", []),
             caso=caso,
         )
     else:
+        degradado = _agente() is not None  # habia LLM pero se agoto la cuota
+
+        # Sin LLM solo se cubre la ruta de dimensionamiento. Ante una pregunta
+        # abierta, el grafo pediria las medidas del gabinete: una no-respuesta
+        # disfrazada de respuesta. Es preferible decir que no se puede.
+        if _es_pregunta_abierta(mensaje, caso):
+            return Respuesta(
+                mensaje=(
+                    "No puedo responder esa pregunta ahora mismo.\n\n"
+                    + (
+                        "**Por qué:** la cuota diaria del modelo de lenguaje se ha "
+                        "agotado, y sin él no puedo buscar en la documentación ni "
+                        "razonar sobre preguntas abiertas.\n\n"
+                        if degradado
+                        else "**Por qué:** no hay modelo de lenguaje configurado, así "
+                        "que no puedo buscar en la documentación ni razonar sobre "
+                        "preguntas abiertas.\n\n"
+                    )
+                    + "**Qué sí puedo hacer:** dimensionar un gabinete. Dame la "
+                    "disipación en W, las temperaturas ambiente y objetivo, y las "
+                    "medidas, y te doy la recomendación con sus fuentes.\n\n"
+                    + (
+                        "**Para preguntas abiertas:** espera al reinicio diario de la "
+                        "cuota o consulta la documentación oficial de Pfannenberg."
+                        if degradado
+                        else "**Para preguntas abiertas:** configura `GROQ_API_KEY` "
+                        "(gratuita en console.groq.com/keys)."
+                    )
+                ),
+                trazas=["modo: determinístico — pregunta fuera de alcance sin LLM"],
+                caso=caso,
+            ).to_dict()
+
         estado = estado_inicial(mensaje, sesion)
         final = GRAFO.invoke(estado)
+        aviso = (
+            "⚠️ Cuota del LLM agotada: respondiendo en modo determinístico.\n\n"
+            if degradado
+            else ""
+        )
         respuesta = Respuesta(
-            mensaje=final.get("respuesta", ""),
+            mensaje=aviso + final.get("respuesta", ""),
             preguntas_pendientes=final.get("preguntas_pendientes", []),
             recomendacion=final.get("recomendacion"),
             alternativa=final.get("alternativa"),
             supuestos=final.get("supuestos", []),
             fuentes=final.get("fuentes", []),
-            trazas=["modo: determinístico (sin API key)"] + final.get("trazas", []),
+            trazas=[
+                "modo: determinístico"
+                + (" (cuota del LLM agotada)" if degradado else " (sin API key)")
+            ]
+            + final.get("trazas", []),
             caso=final.get("caso", {}),
         )
         sesion["caso"] = final.get("caso", {})
